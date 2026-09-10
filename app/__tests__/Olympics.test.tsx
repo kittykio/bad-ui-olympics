@@ -111,3 +111,52 @@ test('medal boundaries and time formatting', () => {
   expect(medalFor(120000)).toBe('Bronze');
   expect(formatTime(12345)).toBe('12.3s');
 });
+
+test('opens any event directly and keeps practice separate from full race records', async () => {
+  const writeText = jest.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  localStorage.setItem('bad-ui-olympics-six-event-best', '10000');
+  render(<Olympics />);
+  click('Play Password pentathlon');
+  tick(1200);
+  fireEvent.change(screen.getByLabelText('Your completely disposable password'), { target: { value: 'Aegg18x!' } });
+  click('Please accept this →');
+  expect(screen.getByText('You beat the interface.')).toBeInTheDocument();
+  expect(localStorage.getItem('bad-ui-olympics-six-event-best')).toBe('10000');
+  await act(async () => { click('Copy score ↗'); });
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Password pentathlon in 1.2s'));
+  expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('Gold medal'));
+  click('Play again ↻');
+  expect(screen.getByLabelText('Your completely disposable password')).toHaveValue('');
+  click('Play Volume gymnastics');
+  click('+ 17');
+  click('Play Submit sprint');
+  for (let i = 0; i < 5; i++) click('Submit ↗');
+  expect(screen.getByText('You beat the interface.')).toBeInTheDocument();
+  click('Play Volume gymnastics');
+  expect(screen.getByLabelText('Current volume')).toHaveTextContent('0%');
+  click('Play Elevator roulette');
+  expect(screen.getByRole('button', { name: 'Floor 3' })).toBeInTheDocument();
+  click('Play Checkbox hurdles');
+  expect(screen.getAllByRole('checkbox')).toHaveLength(4);
+  click('Start full race →');
+  expect(screen.getByRole('button', { name: 'Stop digit 1' })).toBeInTheDocument();
+  finishPin();
+  expect(screen.getByRole('button', { name: 'Next: Volume gymnastics →' })).toBeInTheDocument();
+});
+
+test('checkbox preferences explain opt-in and opt-out states and only accept all channels off', () => {
+  render(<Olympics />);
+  click('Play Checkbox hurdles');
+  expect(screen.getByText('4 of 4 channels still ON')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Send me promotional emails/ }));
+  expect(screen.getByText('3 of 4 channels still ON')).toBeInTheDocument();
+  click('Save preferences →');
+  expect(screen.getByRole('status', { name: 'Game feedback' })).toHaveTextContent('SMS offers, Sales calls, Partner notifications');
+  fireEvent.click(screen.getByRole('checkbox', { name: /Keep my SMS subscription active/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Opt out of sales calls/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Disable partner notifications/ }));
+  expect(screen.getByText('All four channels OFF. Ready to save.')).toBeInTheDocument();
+  click('Save preferences →');
+  expect(screen.getByText('You beat the interface.')).toBeInTheDocument();
+});

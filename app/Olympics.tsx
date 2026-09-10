@@ -28,7 +28,7 @@ const events = [
     name: 'Checkbox hurdles',
     category: 'LEGAL ACROBATICS',
     description:
-      'Reject every subscription. Read carefully: our legal team discovered double negatives.',
+      'Turn off all four marketing channels, then save. A checked box means “yes” to its sentence — some opt in, others opt out.',
     icon: '04',
   },
   {
@@ -46,11 +46,11 @@ const events = [
     icon: '06',
   },
 ];
-const checkboxLabels = [
-  'Send me promotional emails',
-  'Do not unsubscribe me from SMS offers',
-  'Disable daily sales calls',
-  'Do not enable partner notifications',
+const subscriptions = [
+  { channel: 'Promotional emails', label: 'Send me promotional emails', checkedMeansSubscribed: true },
+  { channel: 'SMS offers', label: 'Keep my SMS subscription active', checkedMeansSubscribed: true },
+  { channel: 'Sales calls', label: 'Opt out of sales calls', checkedMeansSubscribed: false },
+  { channel: 'Partner notifications', label: 'Disable partner notifications', checkedMeansSubscribed: false },
 ];
 const floorTargets = [3, 1, 4];
 const passwordRules = [
@@ -79,6 +79,7 @@ export const medalFor = (milliseconds: number) =>
 
 export default function Olympics() {
   const [phase, setPhase] = useState<'ready' | 'playing' | 'between' | 'finished'>('ready');
+  const [practice, setPractice] = useState(false);
   const [round, setRound] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [splits, setSplits] = useState<number[]>([]);
@@ -93,6 +94,7 @@ export default function Olympics() {
   const [message, setMessage] = useState('');
   const [best, setBest] = useState<number | null>(null);
   const [shareText, setShareText] = useState('');
+  const activeSubscriptions = subscriptions.filter((subscription, index) => checks[index] === subscription.checkedMeansSubscribed);
   const started = useRef(0);
   const roundStarted = useRef(0);
   const locked = useRef(false);
@@ -127,11 +129,12 @@ export default function Olympics() {
     if (phase !== 'ready') heading.current?.focus();
   }, [phase, round]);
 
-  function start() {
+  function start(eventIndex = 0, singleEvent = false) {
+    setPractice(singleEvent);
     started.current = performance.now();
     roundStarted.current = started.current;
     locked.current = false;
-    setRound(0);
+    setRound(eventIndex);
     setElapsed(0);
     setSplits([]);
     setDigits([0, 0, 0]);
@@ -153,14 +156,14 @@ export default function Olympics() {
     const now = performance.now();
     const total = now - started.current;
     setElapsed(total);
-    setSplits((current) => [...current, now - roundStarted.current]);
+    setSplits((current) => { const next = [...current]; next[round] = now - roundStarted.current; return next; });
     setMessage('');
-    if (round < events.length - 1) {
+    if (!practice && round < events.length - 1) {
       setPhase('between');
       return;
     }
     setPhase('finished');
-    if (best === null || total < best) {
+    if (!practice && (best === null || total < best)) {
       setBest(total);
       try {
         localStorage.setItem('bad-ui-olympics-six-event-best', String(total));
@@ -190,7 +193,7 @@ export default function Olympics() {
   }
 
   async function share() {
-    const text = `I survived all 6 events of Bad UI Olympics in ${formatTime(elapsed)}. ${medalFor(elapsed)} medal! Can you beat me? ${window.location.origin}/`;
+    const text = practice ? `I completed ${events[round].name} in ${formatTime(elapsed)} in Bad UI Olympics practice! ${window.location.origin}/` : `I survived all 6 events of Bad UI Olympics in ${formatTime(elapsed)}. ${medalFor(elapsed)} medal! Can you beat me? ${window.location.origin}/`;
     try {
       await navigator.clipboard.writeText(text);
       setMessage('Score copied. Go challenge someone.');
@@ -237,7 +240,7 @@ export default function Olympics() {
                 className={index === round ? styles.active : ''}
                 aria-current={index === round ? 'step' : undefined}
               >
-                <span className={styles.eventNumber}>
+                <button className={styles.eventButton} onClick={() => start(index, true)} aria-label={`Play ${event.name}`}><span className={styles.eventNumber}>
                   {splits[index] !== undefined ? '✓' : event.icon}
                 </span>
                 <div>
@@ -245,11 +248,14 @@ export default function Olympics() {
                   <h2>{event.name}</h2>
                   {splits[index] !== undefined && <span>{formatTime(splits[index])}</span>}
                 </div>
+                </button>
               </li>
             ))}
           </ol>
+          <p className={styles.modeHint}>Click any event to practice. Switching events starts a fresh practice attempt.</p>
+          <button className={styles.secondary} onClick={() => start()}>Start full race →</button>
           <div className={styles.record}>
-            <span>PERSONAL BEST · THIS BROWSER</span>
+            <span>FULL RACE BEST · THIS BROWSER</span>
             <strong>{best === null ? '— —' : formatTime(best)}</strong>
             <p>No account. No training. No excuses.</p>
           </div>
@@ -261,7 +267,7 @@ export default function Olympics() {
                 ? 'ATHLETE CHECK-IN'
                 : phase === 'finished'
                   ? 'OFFICIAL RESULTS'
-                  : `EVENT 0${round + 1} / ${String(events.length).padStart(2, '0')}`}
+                  : practice ? 'SINGLE EVENT · PRACTICE' : `EVENT 0${round + 1} / ${String(events.length).padStart(2, '0')}`}
             </span>
             <span role="timer" aria-label="Race time">
               {formatTime(elapsed)}
@@ -282,7 +288,7 @@ export default function Olympics() {
                   Six everyday tasks, made unnecessarily difficult. Beat the clock and earn your
                   medal.
                 </p>
-                <button className={styles.primary} onClick={start}>
+                <button className={styles.primary} onClick={() => start()}>
                   Enter the games <span>↗</span>
                 </button>
                 <small>Under 60s: Gold · Under 120s: Silver · Finish: Bronze</small>
@@ -380,8 +386,8 @@ export default function Olympics() {
                 {round === 3 && (
                   <div className={styles.puzzle}>
                     <fieldset className={styles.checks}>
-                      <legend>Your inbox deserves peace.</legend>
-                      {checkboxLabels.map((label, index) => (
+                      <legend>Goal: all four channels OFF</legend>
+                      {subscriptions.map(({ label, channel, checkedMeansSubscribed }, index) => (
                         <label key={label}>
                           <input
                             type="checkbox"
@@ -392,17 +398,18 @@ export default function Olympics() {
                               )
                             }
                           />
-                          {label}
+                          <span>{label}<small className={styles.subscriptionStatus}>{channel}: <strong>{checks[index] === checkedMeansSubscribed ? 'ON' : 'OFF'}</strong></small></span>
                         </label>
                       ))}
                     </fieldset>
+                    <p className={styles.subscriptionSummary} role="status">{activeSubscriptions.length ? `${activeSubscriptions.length} of 4 channels still ON` : 'All four channels OFF. Ready to save.'}</p>
                     <button
                       className={styles.primary}
                       onClick={() =>
-                        checks.every((value, i) => value === i >= 2)
+                        activeSubscriptions.length === 0
                           ? finishRound()
                           : setMessage(
-                              'You are still subscribed to something. The fine print wins again.',
+                              `You are still subscribed to: ${activeSubscriptions.map(item => item.channel).join(', ')}. Turn these channels OFF before saving.`,
                             )
                       }
                     >
@@ -510,20 +517,20 @@ export default function Olympics() {
             {phase === 'finished' && (
               <>
                 <div className={styles.medal}>
-                  {medalFor(elapsed)}
-                  <span>MEDAL / CERTIFIED SURVIVOR</span>
+                  {practice ? 'Complete' : medalFor(elapsed)}
+                  <span>{practice ? 'SINGLE EVENT / PRACTICE' : 'MEDAL / CERTIFIED SURVIVOR'}</span>
                 </div>
                 <h2 ref={heading} tabIndex={-1}>
                   You beat the interface.
                 </h2>
                 <p className={styles.finalTime}>{formatTime(elapsed)}</p>
-                <p>Six events. One deeply unnecessary achievement.</p>
+                <p>{practice ? `${events[round].name} completed. Choose another event or start the full race.` : 'Six events. One deeply unnecessary achievement.'}</p>
                 <div className={styles.resultActions}>
                   <button className={styles.primary} onClick={share}>
                     Copy score ↗
                   </button>
-                  <button className={styles.secondary} onClick={start}>
-                    Race again ↻
+                  <button className={styles.secondary} onClick={() => start(practice ? round : 0, practice)}>
+                    {practice ? 'Play again ↻' : 'Race again ↻'}
                   </button>
                 </div>
                 {shareText && (
@@ -543,7 +550,7 @@ export default function Olympics() {
           <div className={styles.arenaFooter}>
             <span>BAD DESIGN. GOOD SPORT.</span>
             {phase === 'playing' || phase === 'between' ? (
-              <button onClick={start}>Restart race ↻</button>
+              <button onClick={() => start(practice ? round : 0, practice)}>{practice ? 'Restart event ↻' : 'Restart race ↻'}</button>
             ) : (
               <span>KEYBOARD + TOUCH FRIENDLY</span>
             )}

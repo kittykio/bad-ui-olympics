@@ -601,3 +601,14 @@
     align-items: flex-start;
   }
 }
+
+.sidebar li { padding: 0; }
+.eventButton { display: flex; align-items: center; gap: 12px; padding: 22px 10px; width: 100%; text-align: left; min-height: 64px; }
+.eventButton:hover { background: #ece9fa; }
+.active .eventButton:hover { background: var(--lime); }
+.modeHint { font-size: 14px; line-height: 1.5; margin-top: 18px; }
+@media (max-width: 800px) { .eventButton { padding: 12px 6px; } }
+@media (max-width: 400px) { .eventButton { flex-direction: column; text-align: center; } }
+
+.subscriptionStatus { display: block; margin-top: 6px; color: #514b60; font-size: 14px; line-height: 1.5; }
+.subscriptionSummary { margin-top: 16px; font-size: 14px; line-height: 1.5; }
